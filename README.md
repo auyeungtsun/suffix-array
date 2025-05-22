@@ -1,2 +1,3 @@
-# suffix-array
-Suffix array
+# Suffix array
+
+https://en.wikipedia.org/wiki/Suffix_array
