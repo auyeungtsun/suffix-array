@@ -6,6 +6,8 @@
 
 using namespace std;
 
+const int K = 256; // Alphabet size (e.g., ASCII)
+
 // Structure to hold the Suffix Array and LCP Array
 struct SuffixArrayResult {
     vector<int> sa;  // Suffix Array: sorted indices of suffixes
@@ -19,7 +21,7 @@ struct SuffixArrayResult {
  * @return SuffixArrayResult A struct containing the Suffix Array and LCP array.
  *                           Returns empty vectors for an empty input string.
  *
- * @note Time Complexity: O(N log N) for building the Suffix Array (due to sorting).
+ * @note Time Complexity: O(N log N) due to the doubling of the 'gap' and O(N) for each radix sort. The LCP construction is O(N).
  * @note Space Complexity: O(N) for storing Suffix Array, LCP Array, and intermediate rank arrays.
  */
 SuffixArrayResult buildSuffixArrayAndLCP(const string& text) {
@@ -34,12 +36,44 @@ SuffixArrayResult buildSuffixArrayAndLCP(const string& text) {
     vector<int> temp_rank_array(n); // Temporary array for ranks in next step
 
     for (int i = 0; i < n; ++i) {
-        sa[i] = i;
         rank_array[i] = text[i]; // Using char ASCII values as initial ranks
     }
+    vector<int> cnt(K + 1, 0);
+    for(int x : rank_array) cnt[x]++;
+    for(int i = 1; i <= K; i++) cnt[i] += cnt[i-1];
+    for(int i = n - 1; i >= 0; i--) sa[--cnt[rank_array[i]]] = i;
 
     // 'gap' represents 2^k, the length of prefixes being considered for sorting
     for (int gap = 1; ; gap *= 2) {
+        auto radix_sort = [&](int max_val) {
+            vector<int> cnt(max_val + 2, 0);
+            vector<int> sa_new(n);
+
+            // Sort by the second element (rank_array[i + gap])
+            for (int i = 0; i < n; ++i) {
+                cnt[(sa[i] + gap < n) ? rank_array[sa[i] + gap] + 1 : 0]++; // Shift rank by 1 for 0 index
+            }
+            for (int i = 1; i <= max_val + 1; ++i) {
+                cnt[i] += cnt[i - 1];
+            }
+            for (int i = n - 1; i >= 0; --i) {
+                sa_new[--cnt[(sa[i] + gap < n) ? rank_array[sa[i] + gap] + 1 : 0]] = sa[i];
+            }
+            sa = sa_new;
+
+            // Sort by the first element (rank_array[i])
+            fill(cnt.begin(), cnt.end(), 0);
+            for (int i = 0; i < n; ++i) {
+                cnt[rank_array[sa[i]]]++;
+            }
+            for (int i = 1; i <= max_val; ++i) {
+                cnt[i] += cnt[i - 1];
+            }
+            for (int i = n - 1; i >= 0; --i) {
+                sa_new[--cnt[rank_array[sa[i]]]] = sa[i];
+            }
+            sa = sa_new;
+        };
         auto compare_suffixes = [&](int i, int j) {
             if (rank_array[i] != rank_array[j]) {
                 return rank_array[i] < rank_array[j];
@@ -49,7 +83,7 @@ SuffixArrayResult buildSuffixArrayAndLCP(const string& text) {
             return ri_next < rj_next;
         };
 
-        sort(sa.begin(), sa.end(), compare_suffixes);
+        radix_sort(gap == 1 ? K : n - 1);
 
         temp_rank_array[sa[0]] = 0;
         for (int i = 1; i < n; ++i) {
